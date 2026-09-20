@@ -365,42 +365,15 @@ downloadBtn.addEventListener("click", () => {
     console.log('[DEBUG] no lastReport');
     return;
   }
-  const { jsPDF } = window.jspdf;
-  console.log('[DEBUG] jsPDF:', jsPDF);
-  const doc = new jsPDF();
-  const marginMM = 15;
-  const mmToPt = 2.834645669291339; // 1 mm = 2.834645669291339 pt
-  const marginPt = marginMM * mmToPt;
-  const pageWidthMM = 210;
-  const pageHeightMM = 297;
-  const usableWidthPt = (pageWidthMM - 2 * marginMM) * mmToPt;
-  const usableHeightPt = (pageHeightMM - 2 * marginMM) * mmToPt;
-  const fontSize = 12;
-  const lineHeight = fontSize * 1.5;
-  doc.setFontSize(fontSize);
-
-  // Strip markdown and clean up unwanted artefacts
-  let plain = lastReport
-    .replace(/^#+\s+/gm, '')          // Remove heading markers
-    .replace(/\*\*(.*?)\*\*/g, '$1')  // Bold
-    .replace(/\*(.*?)\*/g, '$1')      // Italic
-    .replace(/`(.*?)`/g, '$1')        // Inline code
-    .replace(/^\s*[-*]\s+/gm, '• ')   // Unordered list bullets
-    .replace(/\|/g, '')               // Remove table pipes
-    .replace(/^\s*[-]{3,}\s*$/gm, ''); // Remove markdown horizontal rules
-
-  const lines = doc.splitTextToSize(plain, usableWidthPt);
-  let y = marginPt;
-  for (const line of lines) {
-    // Add new page if needed
-    if (y + fontSize > usableHeightPt + marginPt) {
-      doc.addPage();
-      y = marginPt;
-    }
-    doc.text(line, marginPt, y);
-    y += lineHeight;
-  }
-  doc.save(`case-file-${Date.now()}.pdf`);
+  // Offer a plain text download as a reliable alternative to PDF
+  const blob = new Blob([lastReport], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const filename = `case-report-${Date.now()}.txt`;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 });
 
 typeTitle();
