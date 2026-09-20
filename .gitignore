@@ -1,0 +1,17 @@
+.env
+# Unused root-level artifacts from Streamlit prototype
+app.py
+final_output_main.py
+Procfile
+research_response.json
+/index.html
+/script.js
+/style.css
+# Backend logs (optional)
+backend/*.log
+backend/backend*.log
+backend/server.log
+# Python cache
+__pycache__/
+**/__pycache__/
+.venv

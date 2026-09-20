@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dossier — Research Desk</title>
+<meta name="description" content="A multi-agent research desk. Open a case on any topic and watch four analysts search, read, write, and review the file." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div class="grain"></div>
+
+<div class="desk">
+
+  <!-- ===================== HEADER / CASE TAB ===================== -->
+  <header class="masthead">
+    <div class="tab">
+      <span class="tab-index">№ 01–04</span>
+      <span class="tab-label">ACTIVE CASE</span>
+    </div>
+    <h1 class="wordmark" id="wordmark" aria-label="Dossier">
+      <span class="type-target" id="typeTarget"></span><span class="caret" aria-hidden="true">_</span>
+    </h1>
+    <p class="masthead-sub">A research desk staffed by four analysts. Hand them a subject — they search, read, write, and review, then hand back a filed report.</p>
+  </header>
+
+  <!-- ===================== CASE SUBJECT INPUT ===================== -->
+  <section class="card intake" aria-labelledby="intakeLabel">
+    <div class="intake-row">
+      <label id="intakeLabel" for="topicInput">Case subject</label>
+      <div class="intake-field">
+        <input
+          type="text"
+          id="topicInput"
+          name="topic"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="e.g. quantum error correction, 2025 breakthroughs"
+          maxlength="200"
+        />
+        <button id="runBtn" class="btn-open" type="button">
+          <span class="btn-open-label">Open case</span>
+          <span class="btn-open-glyph" aria-hidden="true">✎</span>
+        </button>
+      </div>
+    </div>
+    <div class="precedents" aria-label="Example cases">
+      <span class="precedents-label">prior cases</span>
+      <button class="chip" type="button" data-topic="Large language model agents in 2025">LLM agents, 2025</button>
+      <button class="chip" type="button" data-topic="CRISPR gene editing recent advances">CRISPR gene editing</button>
+      <button class="chip" type="button" data-topic="Progress toward commercial fusion energy">Fusion energy progress</button>
+    </div>
+    <p class="status-line" id="statusLine" role="status" aria-live="polite"></p>
+  </section>
+
+  <!-- ===================== INVESTIGATION LOG (PIPELINE) ===================== -->
+  <section class="card log" id="logSection" aria-labelledby="logLabel">
+    <h2 id="logLabel" class="card-title">Investigation log</h2>
+
+    <ol class="timeline" id="timeline">
+      <li class="node" data-step="search" data-state="waiting">
+        <div class="node-rail"><span class="node-dot"></span></div>
+        <div class="node-body">
+          <div class="node-head">
+            <span class="node-num">01</span>
+            <h3 class="node-title">Search analyst</h3>
+            <span class="node-state" data-state-text>Standing by</span>
+          </div>
+          <p class="node-desc">Canvasses the open web for recent, reliable material on the case subject.</p>
+        </div>
+      </li>
+
+      <li class="node" data-step="reader" data-state="waiting">
+        <div class="node-rail"><span class="node-dot"></span></div>
+        <div class="node-body">
+          <div class="node-head">
+            <span class="node-num">02</span>
+            <h3 class="node-title">Field reader</h3>
+            <span class="node-state" data-state-text>Standing by</span>
+          </div>
+          <p class="node-desc">Follows the most promising lead and reads the source closely for detail.</p>
+        </div>
+      </li>
+
+      <li class="node" data-step="writer" data-state="waiting">
+        <div class="node-rail"><span class="node-dot"></span></div>
+        <div class="node-body">
+          <div class="node-head">
+            <span class="node-num">03</span>
+            <h3 class="node-title">Case writer</h3>
+            <span class="node-state" data-state-text>Standing by</span>
+          </div>
+          <p class="node-desc">Drafts the findings into a single, readable report.</p>
+        </div>
+      </li>
+
+      <li class="node" data-step="critic" data-state="waiting">
+        <div class="node-rail"><span class="node-dot"></span></div>
+        <div class="node-body">
+          <div class="node-head">
+            <span class="node-num">04</span>
+            <h3 class="node-title">Review board</h3>
+            <span class="node-state" data-state-text>Standing by</span>
+          </div>
+          <p class="node-desc">Reads the draft back critically and notes what's missing or weak.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ===================== EXHIBITS / RESULTS ===================== -->
+  <section class="results" id="results" hidden>
+
+    <details class="exhibit" id="exhibitSearch">
+      <summary>
+        <span class="exhibit-tag">Exhibit A</span>
+        <span class="exhibit-name">Search brief</span>
+        <span class="exhibit-chevron" aria-hidden="true">›</span>
+      </summary>
+      <div class="exhibit-body" id="exhibitSearchBody"></div>
+    </details>
+
+    <details class="exhibit" id="exhibitReader">
+      <summary>
+        <span class="exhibit-tag">Exhibit B</span>
+        <span class="exhibit-name">Scraped source</span>
+        <span class="exhibit-chevron" aria-hidden="true">›</span>
+      </summary>
+      <div class="exhibit-body" id="exhibitReaderBody"></div>
+    </details>
+
+    <details class="exhibit" id="exhibitReport">
+      <summary>
+        <span class="exhibit-tag">Exhibit C</span>
+        <span class="exhibit-name">Final report</span>
+        <button class="btn-ghost" id="downloadBtn" type="button">Download PDF</button>
+        <span class="exhibit-chevron" aria-hidden="true">›</span>
+      </summary>
+      <div class="exhibit-body" id="exhibitReportBody"></div>
+    </details>
+
+    <details class="exhibit" id="exhibitFeedback">
+      <summary>
+        <span class="exhibit-tag">Exhibit D</span>
+        <span class="exhibit-name">Review board notes</span>
+        <span class="exhibit-chevron" aria-hidden="true">›</span>
+      </summary>
+      <div class="exhibit-body" id="exhibitFeedbackBody"></div>
+    </details>
+
+  </section>
+
+  <!-- ===================== ERROR PANEL ===================== -->
+  <section class="card error-panel" id="errorPanel" hidden>
+    <span class="filed-stamp stamp-red">Stalled</span>
+    <h2>The case stalled</h2>
+    <p id="errorMessage">The desk couldn't reach the pipeline.</p>
+    <button class="btn-ghost" id="retryBtn" type="button">Retry</button>
+  </section>
+
+  <footer class="notice">
+    Dossier — search → read → write → review, served by a small Flask proxy that keeps your API keys server-side.
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
