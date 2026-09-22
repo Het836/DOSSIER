@@ -24,9 +24,7 @@ const STEP_LABEL = {
   critic: "Review board",
 };
 
-/* ------------------------------------------------------------------- */
-/* DOM refs                                                             */
-/* ------------------------------------------------------------------- */
+// DOM refs
 const topicInput   = document.getElementById("topicInput");
 const runBtn       = document.getElementById("runBtn");
 const statusLine   = document.getElementById("statusLine");
@@ -47,9 +45,7 @@ let lastReport = "";
 let running = false;
 
 
-/* ------------------------------------------------------------------- */
-/* Title typewriter — a single page-load moment, not a recurring effect */
-/* ------------------------------------------------------------------- */
+// Title typewriter — a single page-load moment, not a recurring effect
 function typeTitle() {
   const target = document.getElementById("typeTarget");
   const word = "DOSSIER";
@@ -67,14 +63,12 @@ function typeTitle() {
   tick();
 }
 
-/* ------------------------------------------------------------------- */
-/* Minimal, dependency-free markdown → HTML                             */
-/* ------------------------------------------------------------------- */
+// Minimal, dependency-free markdown → HTML
 function escapeHtml(str) {
   return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">");
 }
 
 function inlineMd(line) {
@@ -144,9 +138,9 @@ function renderMarkdown(raw) {
   return html || `<p>${inlineMd(src)}</p>`;
 }
 
-/* ------------------------------------------------------------------- */
-/* Pipeline node state                                                  */
-/* ------------------------------------------------------------------- */
+// -------------------------------------------------------------------
+//   Pipeline node state
+// -------------------------------------------------------------------
 function setNodeState(key, state, label) {
   const node = nodes[key];
   if (!node) return;
@@ -170,9 +164,9 @@ function setStatus(text, tone) {
   else statusLine.removeAttribute("data-tone");
 }
 
-/* ------------------------------------------------------------------- */
-/* Proxy calls — no keys here, app.py holds those                       */
-/* ------------------------------------------------------------------- */
+// -------------------------------------------------------------------
+//   Proxy calls — no keys here, app.py holds those
+// -------------------------------------------------------------------
 async function apiSearch(query) {
   const url = new URL(CONFIG.SEARCH_URL, window.location.href);
   console.log(`[DEBUG] apiSearch: Fetching from ${url}`);
@@ -213,9 +207,9 @@ async function apiChat(messages) {
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-/* ------------------------------------------------------------------- */
-/* Rendering results                                                    */
-/* ------------------------------------------------------------------- */
+// -------------------------------------------------------------------
+//   Rendering results
+// -------------------------------------------------------------------
 function renderResults(data) {
   console.log('[DEBUG] renderResults data:', data);
   document.getElementById("exhibitSearchBody").textContent = data.search_results || "—";
@@ -226,9 +220,9 @@ function renderResults(data) {
   resultsEl.hidden = false;
 }
 
-/* ------------------------------------------------------------------- */
-/* Main run flow — each step is a real, awaited call                    */
-/* ------------------------------------------------------------------- */
+// -------------------------------------------------------------------
+//   Main run flow — each step is a real, awaited call
+// -------------------------------------------------------------------
 function friendlyError(err) {
   const msg = err?.message || String(err);
   if (/Failed to fetch|NetworkError/i.test(msg)) {
@@ -331,9 +325,9 @@ async function runCase(topic) {
   }
 }
 
-/* ------------------------------------------------------------------- */
-/* Wiring                                                                */
-/* ------------------------------------------------------------------- */
+// -------------------------------------------------------------------
+//   Wiring
+// -------------------------------------------------------------------
 runBtn.addEventListener("click", () => {
   const topic = topicInput.value.trim();
   if (!topic) {
@@ -366,7 +360,8 @@ downloadBtn.addEventListener("click", () => {
     return;
   }
   // Offer a plain text download as a reliable alternative to PDF
-  const blob = new Blob([lastReport], { type: 'text/plain;charset=utf-8' });
+  const sanitized = lastReport.replace(/[*#]/g, '');
+  const blob = new Blob([sanitized], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -380,8 +375,9 @@ const downloadDocBtn = document.getElementById('downloadDocBtn');
 if (downloadDocBtn) {
   downloadDocBtn.addEventListener('click', () => {
     if (!lastReport) return;
+    const sanitized = lastReport.replace(/[*#]/g, '');
     // Simple .doc file (plain text with .doc extension)
-    const blob = new Blob([lastReport], { type: 'application/msword' });
+    const blob = new Blob([sanitized], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
