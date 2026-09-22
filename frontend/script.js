@@ -24,7 +24,9 @@ const STEP_LABEL = {
   critic: "Review board",
 };
 
-// DOM refs
+/* -------------------------------------------------------------------
+   DOM refs
+   ------------------------------------------------------------------- */
 const topicInput   = document.getElementById("topicInput");
 const runBtn       = document.getElementById("runBtn");
 const statusLine   = document.getElementById("statusLine");
@@ -45,7 +47,9 @@ let lastReport = "";
 let running = false;
 
 
-// Title typewriter — a single page-load moment, not a recurring effect
+/* -------------------------------------------------------------------
+   Title typewriter — a single page-load moment, not a recurring effect
+   ------------------------------------------------------------------- */
 function typeTitle() {
   const target = document.getElementById("typeTarget");
   const word = "DOSSIER";
@@ -63,7 +67,9 @@ function typeTitle() {
   tick();
 }
 
-// Minimal, dependency-free markdown → HTML
+/* -------------------------------------------------------------------
+   Minimal, dependency-free markdown → HTML
+   ------------------------------------------------------------------- */
 function escapeHtml(str) {
   return str
     .replace(/&/g, "&")
@@ -138,9 +144,9 @@ function renderMarkdown(raw) {
   return html || `<p>${inlineMd(src)}</p>`;
 }
 
-// -------------------------------------------------------------------
-//   Pipeline node state
-// -------------------------------------------------------------------
+/* -------------------------------------------------------------------
+   Pipeline node state
+   ------------------------------------------------------------------- */
 function setNodeState(key, state, label) {
   const node = nodes[key];
   if (!node) return;
@@ -164,9 +170,9 @@ function setStatus(text, tone) {
   else statusLine.removeAttribute("data-tone");
 }
 
-// -------------------------------------------------------------------
-//   Proxy calls — no keys here, app.py holds those
-// -------------------------------------------------------------------
+/* -------------------------------------------------------------------
+   Proxy calls — no keys here, app.py holds those
+   ------------------------------------------------------------------- */
 async function apiSearch(query) {
   const url = new URL(CONFIG.SEARCH_URL, window.location.href);
   console.log(`[DEBUG] apiSearch: Fetching from ${url}`);
@@ -207,9 +213,9 @@ async function apiChat(messages) {
   return data?.choices?.[0]?.message?.content ?? "";
 }
 
-// -------------------------------------------------------------------
-//   Rendering results
-// -------------------------------------------------------------------
+/* -------------------------------------------------------------------
+   Rendering results
+   ------------------------------------------------------------------- */
 function renderResults(data) {
   console.log('[DEBUG] renderResults data:', data);
   document.getElementById("exhibitSearchBody").textContent = data.search_results || "—";
@@ -220,9 +226,9 @@ function renderResults(data) {
   resultsEl.hidden = false;
 }
 
-// -------------------------------------------------------------------
-//   Main run flow — each step is a real, awaited call
-// -------------------------------------------------------------------
+/* -------------------------------------------------------------------
+   Main run flow — each step is a real, awaited call
+   ------------------------------------------------------------------- */
 function friendlyError(err) {
   const msg = err?.message || String(err);
   if (/Failed to fetch|NetworkError/i.test(msg)) {
@@ -325,9 +331,9 @@ async function runCase(topic) {
   }
 }
 
-// -------------------------------------------------------------------
-//   Wiring
-// -------------------------------------------------------------------
+/* -------------------------------------------------------------------
+   Wiring
+   ------------------------------------------------------------------- */
 runBtn.addEventListener("click", () => {
   const topic = topicInput.value.trim();
   if (!topic) {
@@ -340,13 +346,6 @@ runBtn.addEventListener("click", () => {
 
 topicInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") runBtn.click();
-});
-
-document.querySelectorAll(".chip").forEach((chip) => {
-  chip.addEventListener("click", () => {
-    topicInput.value = chip.dataset.topic;
-    topicInput.focus();
-  });
 });
 
 retryBtn.addEventListener("click", () => {
@@ -388,4 +387,67 @@ if (downloadDocBtn) {
   });
 }
 
+/* -------------------------------------------------------------------
+   Suggestion chips
+   ------------------------------------------------------------------- */
+const SUGGESTIONS = [
+  { topic: "Large language model agents in 2025", label: "LLM agents, 2025" },
+  { topic: "CRISPR gene editing recent advances", label: "CRISPR gene editing" },
+  { topic: "Progress toward commercial fusion energy", label: "Fusion energy progress" },
+  { topic: "Quantum computing breakthroughs 2024", label: "Quantum computing 2024" },
+  { topic: "Renewable energy storage solutions", label: "Renewable energy storage" },
+  { topic: "Artificial intelligence ethics guidelines", label: "AI ethics guidelines" },
+  { topic: "Space missions to Mars 2025", label: "Mars missions 2025" },
+  { topic: "Global supply chain resilience", label: "Supply chain resilience" },
+  { topic: "Mental health technology innovations", label: "Mental health tech" },
+  { topic: "Advanced robotics in manufacturing", label: "Advanced robotics" },
+  { topic: "Climate change adaptation strategies", label: "Climate adaptation" },
+  { topic: "Quantum error correction", label: "Quantum error correction" },
+  { topic: "Neural interface devices", label: "Neural interfaces" },
+  { topic: "Synthetic biology applications", label: "Synthetic biology" },
+  { topic: "Dark matter research updates", label: "Dark matter research" }
+];
+
+function getRandomSuggestions(array, n) {
+  const shuffled = array.slice(); // copy
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, n);
+}
+
+function createChip({ topic, label }) {
+  const chip = document.createElement('button');
+  chip.className = 'chip';
+  chip.type = 'button';
+  chip.dataset.topic = topic;
+  chip.textContent = label;
+  return chip;
+}
+
+function populateSuggestions() {
+  const container = document.querySelector('.precedents');
+  if (!container) return;
+  // Keep the label, clear chips
+  container.innerHTML = '<span class="precedents-label">prior cases</span>';
+  const selected = getRandomSuggestions(SUGGESTIONS, 3);
+  selected.forEach(item => {
+    const chip = createChip(item);
+    container.appendChild(chip);
+  });
+  attachChipListeners();
+}
+
+function attachChipListeners() {
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      topicInput.value = chip.dataset.topic;
+      topicInput.focus();
+    });
+  });
+}
+
+// Initialize
+populateSuggestions();
 typeTitle();
