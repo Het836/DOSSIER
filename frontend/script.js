@@ -376,4 +376,20 @@ downloadBtn.addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+const downloadDocBtn = document.getElementById('downloadDocBtn');
+if (downloadDocBtn) {
+  downloadDocBtn.addEventListener('click', () => {
+    if (!lastReport) return;
+    // Simple .doc file (plain text with .doc extension)
+    const blob = new Blob([lastReport], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const filename = `case-report-${Date.now()}.doc`;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
 typeTitle();
