@@ -7,14 +7,58 @@
    Tavily/Groq and hands the result back.
    ======================================================================= */
 
-const CONFIG = {
-  SEARCH_URL: "/api/search",
-  EXTRACT_URL: "/api/extract",
-  CHAT_URL: "/api/chat",
+// The API lives on the backend server (Flask app.py on :5000, or FastAPI
+// backend/main.py on :8000), not necessarily on the same origin as the page.
+// When the page is served by a static server (VS Code Live Server, etc.) the
+// relative URLs below 405, so we probe the page origin first and fall back.
+const API_CANDIDATES = [
+  window.location.origin,                 // same origin as the page
+  "http://127.0.0.1:5000",                // Flask app.py
+  "http://127.0.0.1:8000",                // FastAPI backend/main.py
+];
+
+let CONFIG = {
+  SEARCH_URL: null,
+  EXTRACT_URL: null,
+  CHAT_URL: null,
 };
 
-console.log(`[DEBUG] CONFIG:`, CONFIG);
+// Probe each candidate once; the first one that answers POST /api/search wins.
+async function resolveConfig() {
+  for (const base of API_CANDIDATES) {
+    try {
+      const res = await fetch(`${base}/api/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: "probe" }),
+      });
+      if (res.ok) {
+        CONFIG = {
+          SEARCH_URL: `${base}/api/search`,
+          EXTRACT_URL: `${base}/api/extract`,
+          CHAT_URL: `${base}/api/chat`,
+        };
+        console.log(`[DEBUG] API resolved to ${base}`);
+        return;
+      }
+      console.log(`[DEBUG] ${base} -> HTTP ${res.status}, trying next`);
+    } catch (e) {
+      console.log(`[DEBUG] ${base} unreachable: ${e.message}`);
+    }
+  }
+  console.error("[DEBUG] No API endpoint could be reached.");
+}
+
 console.log(`[DEBUG] window.location:`, window.location.href);
+
+function sanitizeText(str) {
+  if (!str) return '';
+  // Remove annotation characters: *, #, -, |, and collapse whitespace
+  return str
+    .replace(/[*#\-|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 const STEP_ORDER = ["search", "reader", "writer", "critic"];
 const STEP_LABEL = {
@@ -173,18 +217,59 @@ function setStatus(text, tone) {
 /* -------------------------------------------------------------------
    Proxy calls — no keys here, app.py holds those
    ------------------------------------------------------------------- */
+
+// Read the response body safely. A non-2xx or empty body (server starting up,
+// Tavily rate-limit, timeout) must not reach res.json(), which throws
+// "Unexpected end of JSON input" on an empty response.
+async function parseResponse(res, label) {
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const text = await res.text();
+      if (text) {
+        try { detail = (JSON.parse(text).error || text).slice(0, 200); }
+        catch { detail = text.slice(0, 200); }
+      }
+    } catch { /* body unreadable — that's fine */ }
+    // 405 = the browser is talking to a server that doesn't expose this
+    // endpoint (wrong port / static file server). Retrying won't help.
+    if (res.status === 405) {
+      throw new Error(
+        `${label} returned HTTP 405 — the server at ${res.url} doesn't ` +
+        `expose this endpoint. Start app.py (:5000) or backend/main.py (:8000).`
+      );
+    }
+    throw new Error(detail || `${label} failed (HTTP ${res.status})`);
+  }
+  const text = await res.text();
+  if (!text) throw new Error(`${label} returned an empty response.`);
+  try { return JSON.parse(text); }
+  catch { throw new Error(`${label} returned a non-JSON response.`); }
+}
+
 async function apiSearch(query) {
   const url = new URL(CONFIG.SEARCH_URL, window.location.href);
   console.log(`[DEBUG] apiSearch: Fetching from ${url}`);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query }),
-  });
-  console.log(`[DEBUG] apiSearch: Response status ${res.status}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Search failed (HTTP ${res.status})`);
-  return data;
+  // The first stage is the one that stalls (server boot / Tavily rate-limit),
+  // so give it one retry before reporting failure.
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      console.log(`[DEBUG] apiSearch: Response status ${res.status}`);
+      return await parseResponse(res, "Search");
+    } catch (err) {
+      lastErr = err;
+      // A 405 is a config problem (wrong server/port), not a transient one.
+      if (err?.message?.includes("HTTP 405")) break;
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  throw lastErr;
 }
 
 async function apiExtract(url) {
@@ -193,9 +278,7 @@ async function apiExtract(url) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Extract failed (HTTP ${res.status})`);
-  return data;
+  return parseResponse(res, "Extract");
 }
 
 async function apiChat(messages) {
@@ -204,8 +287,7 @@ async function apiChat(messages) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ messages }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `Chat failed (HTTP ${res.status})`);
+  const data = await parseResponse(res, "Chat");
   // FastAPI returns { response: "..." }, Flask proxy returns { choices: [{ message: { content: "..." } }] }
   if (data.response !== undefined) {
     return data.response;
@@ -218,11 +300,15 @@ async function apiChat(messages) {
    ------------------------------------------------------------------- */
 function renderResults(data) {
   console.log('[DEBUG] renderResults data:', data);
-  document.getElementById("exhibitSearchBody").textContent = data.search_results || "—";
-  document.getElementById("exhibitReaderBody").textContent = data.scraped_content || "—";
-  document.getElementById("exhibitReportBody").innerHTML = renderMarkdown(data.report);
-  document.getElementById("exhibitFeedbackBody").innerHTML = renderMarkdown(data.feedback);
-  lastReport = data.report || "";
+  const cleanSearch = sanitizeText(data.search_results || "");
+  const cleanScraped = sanitizeText(data.scraped_content || "");
+  const cleanReport = sanitizeText(data.report || "");
+  const cleanFeedback = sanitizeText(data.feedback || "");
+  document.getElementById("exhibitSearchBody").textContent = cleanSearch || "—";
+  document.getElementById("exhibitReaderBody").textContent = cleanScraped || "—";
+  document.getElementById("exhibitReportBody").innerHTML = renderMarkdown(cleanReport);
+  document.getElementById("exhibitFeedbackBody").innerHTML = renderMarkdown(cleanFeedback);
+  lastReport = cleanReport;
   resultsEl.hidden = false;
 }
 
@@ -239,6 +325,12 @@ function friendlyError(err) {
 
 async function runCase(topic) {
   if (running) return;
+
+  await resolveConfig();
+  if (!CONFIG.SEARCH_URL) {
+    setStatus("No API server reachable. Start app.py (:5000) or backend/main.py (:8000).", "error");
+    return;
+  }
 
   running = true;
   currentTopic = topic;
@@ -359,7 +451,7 @@ downloadBtn.addEventListener("click", () => {
     return;
   }
   // Offer a plain text download as a reliable alternative to PDF
-  const sanitized = lastReport.replace(/[*#]/g, '');
+  const sanitized = sanitizeText(lastReport);
   const blob = new Blob([sanitized], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -374,7 +466,7 @@ const downloadDocBtn = document.getElementById('downloadDocBtn');
 if (downloadDocBtn) {
   downloadDocBtn.addEventListener('click', () => {
     if (!lastReport) return;
-    const sanitized = lastReport.replace(/[*#]/g, '');
+    const sanitized = sanitizeText(lastReport);
     // Simple .doc file (plain text with .doc extension)
     const blob = new Blob([sanitized], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);

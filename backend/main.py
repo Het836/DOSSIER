@@ -106,60 +106,69 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.post("/api/research", response_model=ResearchResponse)
 async def research_endpoint(request: TopicRequest):
-    """Run the full research pipeline with timeouts"""
+    """Run the full research pipeline"""
     try:
         topic = request.topic.strip()
         if not topic:
             raise HTTPException(status_code=400, detail="Topic cannot be empty")
 
-        # Run the research pipeline (same logic as pipeline.py) with timeouts
+        # Run the research pipeline (same logic as pipeline.py)
         state = {}
 
         # Step 1: Search agent
-        search_agent = build_search_agent()
         try:
-            search_result = await asyncio.wait_for(
-                search_agent.invoke({
-                    "messages": [("user", f"Find recent, reliable and detailed information about: {topic}")]
-                }),
-                timeout=10.0
-            )
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=504, detail="Search agent timeout")
-        state["search_results"] = search_result['messages'][-1].content
+            search_agent = build_search_agent()
+            search_result = search_agent.invoke({
+                "messages": [("user", f"Find recent, reliable and detailed information about: {topic}")]
+            })
+            state["search_results"] = search_result['messages'][-1].content
+        except Exception as e:
+            print(f"Error in search agent: {e}")
+            raise HTTPException(status_code=504, detail=f"Search agent error: {e}")
 
         # Step 2: Reader agent
-        reader_agent = build_reader_agent()
         try:
-            reader_result = await asyncio.wait_for(
-                reader_agent.invoke({
-                    "messages": [("user",
-                                f"Based on the following search result about '{topic}', "
-                                f"pick the most relevent URL and scrape it for deeper content.\n\n"
-                                f"search Results:\n{state['search_results'][:800]}"
-                    )]
-                }),
-                timeout=10.0
-            )
-        except asyncio.TimeoutError:
-            raise HTTPException(status_code=504, detail="Reader agent timeout")
-        state['scraped_content'] = reader_result['messages'][-1].content
+            reader_agent = build_reader_agent()
+            reader_result = reader_agent.invoke({
+                "messages": [
+                    ("user",
+                        f"Based on the following search result about '{topic}', "
+                        f"pick the most relevent URL and scrape it for deeper content.\n\n"
+                        f"search Results:\n{state['search_results'][:800]}"
+                    )
+                ]
+            })
+            state['scraped_content'] = reader_result['messages'][-1].content
+        except Exception as e:
+            print(f"Error in reader agent: {e}")
+            raise HTTPException(status_code=504, detail=f"Reader agent error: {e}")
 
         # Step 3: Writer chain
-        research_combined = (
-            f"SEARCH RESULTS : \n {state['search_results']} \n\n"
-            f"DETAILED SCRAPED CONTENT : \n {state['scraped_content']}"
-        )
-
-        state['report'] = writer_chain.invoke({
-            "topic": topic,
-            "research" : research_combined
-        })
+        try:
+            research_combined = (
+                f"SEARCH RESULTS : \n {state['search_results']} \n\n"
+                f"DETAILED SCRAPED CONTENT : \n {state['scraped_content']}"
+            )
+            state['report'] = writer_chain.invoke({
+                "topic": topic,
+                "research" : research_combined
+            })
+        except Exception as e:
+            print(f"Error in writer chain: {e}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=504, detail=f"Writer chain error: {e}")
 
         # Step 4: Critic chain
-        state['feedback'] = critic_chain.invoke({
-            "report": state['report']
-        })
+        try:
+            state['feedback'] = critic_chain.invoke({
+                "report": state['report']
+            })
+        except Exception as e:
+            print(f"Error in critic chain: {e}")
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(status_code=504, detail=f"Critic chain error: {e}")
 
         return ResearchResponse(
             search_results=state["search_results"],
@@ -171,6 +180,8 @@ async def research_endpoint(request: TopicRequest):
     except Exception as e:
         # Log the error and return default response to avoid crashing
         print(f"Error in research endpoint: {e}")
+        import traceback
+        traceback.print_exc()
         return ResearchResponse(
             search_results="",
             scraped_content="",
